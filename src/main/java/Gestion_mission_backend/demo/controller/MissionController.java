@@ -110,6 +110,14 @@ public class MissionController {
         return ResponseEntity.ok(missions);
     }
 
+    @GetMapping("/statuts")
+    public ResponseEntity<List<MissionResponseDTO>> getMissionsByStatuts(@RequestParam List<String> codes) {
+        log.info("[MISSION_API] GET /api/missions/statuts - codes: {}", codes);
+        List<MissionResponseDTO> missions = missionService.getMissionsByStatuts(codes);
+        log.info("[MISSION_API] ✓ {} mission(s) trouvée(s) pour statuts: {}", missions.size(), codes);
+        return ResponseEntity.ok(missions);
+    }
+
     @GetMapping("/createur/{idUtilisateur}")
     public ResponseEntity<List<MissionResponseDTO>> getMissionsByCreateur(@PathVariable Long idUtilisateur) {
         List<MissionResponseDTO> missions = missionService.getMissionsByCreateur(idUtilisateur);

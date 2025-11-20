@@ -16,6 +16,8 @@ public interface GmOrdreMissionRepository extends JpaRepository<GmOrdreMission, 
     
     List<GmOrdreMission> findByStatutOrdreMission(String statut);
     
+    List<GmOrdreMission> findByStatutOrdreMissionIn(List<String> statuts);
+    
     List<GmOrdreMission> findByIdUtilisateurCreateur(Long idUtilisateur);
     
     @Query("SELECT m FROM GmOrdreMission m WHERE m.statutOrdreMission IN :statuts")

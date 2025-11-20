@@ -155,6 +155,16 @@ public class MissionService {
     }
 
     @Transactional(readOnly = true)
+    public List<MissionResponseDTO> getMissionsByStatuts(List<String> statuts) {
+        log.info("[MISSION_SERVICE] getMissionsByStatuts appelé avec {} statuts", statuts.size());
+        List<GmOrdreMission> missions = missionRepository.findByStatutOrdreMissionIn(statuts);
+        log.info("[MISSION_SERVICE] {} missions trouvées pour statuts: {}", missions.size(), statuts);
+        return missions.stream()
+                .map(this::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<MissionResponseDTO> getMissionsByCreateur(Long idUtilisateur) {
         log.info("[MISSION_SERVICE] getMissionsByCreateur appelé pour userId={}", idUtilisateur);
         List<GmOrdreMission> missions = missionRepository.findByIdUtilisateurCreateur(idUtilisateur);

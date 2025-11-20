@@ -21,6 +21,9 @@ public class GmRessource {
     @Column(name = "DISPO_RESSOURCE")
     private Long dispoRessource;
 
+    @Column(name = "ID_UTILISATEUR_CREATEUR")
+    private Long idUtilisateurCreateur;
+
     // Constructeurs
     public GmRessource() {
     }
@@ -61,5 +64,13 @@ public class GmRessource {
 
     public void setDispoRessource(Long dispoRessource) {
         this.dispoRessource = dispoRessource;
+    }
+
+    public Long getIdUtilisateurCreateur() {
+        return idUtilisateurCreateur;
+    }
+
+    public void setIdUtilisateurCreateur(Long idUtilisateurCreateur) {
+        this.idUtilisateurCreateur = idUtilisateurCreateur;
     }
 }
