@@ -3,6 +3,7 @@ package Gestion_mission_backend.demo.controller;
 import Gestion_mission_backend.demo.dto.MissionCreationDTO;
 import Gestion_mission_backend.demo.dto.MissionResponseDTO;
 import Gestion_mission_backend.demo.service.MissionService;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,10 +50,28 @@ public class MissionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<MissionResponseDTO>> getAllMissions() {
-        log.info("[API] GET /api/missions - Récupération de toutes les missions");
+    public ResponseEntity<List<MissionResponseDTO>> getAllMissions(
+            @RequestParam(required = false, defaultValue = "false") boolean all,
+            HttpSession session) {
+        log.info("[API] GET /api/missions - all={}", all);
+        
+        // Par défaut, retourner uniquement les missions de l'utilisateur connecté
+        if (!all) {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                log.warn("[API] GET /api/missions - Utilisateur non authentifié");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            log.info("[API] GET /api/missions - Retour des missions de userId={}", userId);
+            List<MissionResponseDTO> missions = missionService.getMissionsByCreateur(userId);
+            log.info("[API] GET /api/missions - {} missions trouvées", missions.size());
+            return ResponseEntity.ok(missions);
+        }
+        
+        // Si all=true, retourner toutes les missions (pour RH/MG)
+        log.info("[API] GET /api/missions - Mode ALL activé");
         List<MissionResponseDTO> missions = missionService.getAllMissions();
-        log.info("[API] GET /api/missions - {} missions trouvées", missions.size());
+        log.info("[API] GET /api/missions - {} missions trouvées (mode ALL)", missions.size());
         if (!missions.isEmpty()) {
             log.info("[API] Première mission: ID={}, Code={}, Statut={}", 
                 missions.get(0).getIdOrdreMission(), 
@@ -63,10 +82,17 @@ public class MissionController {
     }
 
     @GetMapping("/mine")
-    public ResponseEntity<List<MissionResponseDTO>> getMyMissions() {
+    public ResponseEntity<List<MissionResponseDTO>> getMyMissions(HttpSession session) {
         log.info("[API] GET /api/missions/mine - Récupération des missions de l'utilisateur");
-        Long currentUserId = 1L; // Temporaire - à remplacer par l'utilisateur authentifié
-        log.info("[API] userId temporaire: {}", currentUserId);
+        log.info("[API] Session ID: {}", session.getId());
+        log.info("[API] Session attributes: {}", java.util.Collections.list(session.getAttributeNames()));
+        Long currentUserId = (Long) session.getAttribute("userId");
+        log.info("[API] userId récupéré de session.getAttribute(\"userId\"): {}", currentUserId);
+        if (currentUserId == null) {
+            log.warn("[API] GET /api/missions/mine - Utilisateur non authentifié - userId est NULL");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        log.info("[API] ✅ userId depuis session: {}", currentUserId);
         List<MissionResponseDTO> missions = missionService.getMissionsByCreateur(currentUserId);
         log.info("[API] GET /api/missions/mine - {} missions trouvées pour userId={}", missions.size(), currentUserId);
         if (!missions.isEmpty()) {

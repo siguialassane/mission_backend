@@ -47,7 +47,10 @@ public class AgentService {
 
     @Transactional(readOnly = true)
     public List<AgentDTO> getMyAgents(Long idUtilisateur) {
-        return agentRepository.findByIdUtilisateurCreateur(idUtilisateur).stream()
+        log.info("[AGENT_SERVICE] getMyAgents appelé pour userId={}", idUtilisateur);
+        List<GmAgent> agents = agentRepository.findByIdUtilisateurCreateur(idUtilisateur);
+        log.info("[AGENT_SERVICE] {} agents trouvés pour userId={}", agents.size(), idUtilisateur);
+        return agents.stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -116,16 +119,30 @@ public class AgentService {
 
     @Transactional
     public AgentDTO updateAgent(Long id, AgentDTO dto) {
+        log.info("[AGENT_UPDATE] Début modification agent ID: {}", id);
         GmAgent agent = agentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Agent non trouvé : " + id));
+                .orElseThrow(() -> {
+                    log.error("[AGENT_UPDATE] Agent {} non trouvé", id);
+                    return new RuntimeException("Agent non trouvé : " + id);
+                });
 
+        log.debug("[AGENT_UPDATE] Mise à jour des champs pour agent {}", id);
         agent.setNomAgent(dto.getNomAgent());
         agent.setPrenomAgent(dto.getPrenomAgent());
         agent.setEmailAgent(dto.getEmailAgent());
         agent.setTelephoneAgent(dto.getTelephoneAgent());
         agent.setStatutActifAgent(dto.getStatutActifAgent());
+        
+        // Mettre à jour fonction et service également
+        if (dto.getIdFonction() != null) {
+            agent.setIdFonction(dto.getIdFonction());
+        }
+        if (dto.getIdService() != null) {
+            agent.setIdService(dto.getIdService());
+        }
 
         agent = agentRepository.save(agent);
+        log.info("[AGENT_UPDATE] ✓ Agent {} modifié avec succès", id);
         return toDTO(agent);
     }
 
@@ -153,5 +170,43 @@ public class AgentService {
         }
         
         return dto;
+    }
+
+    @Transactional
+    public void deleteAgent(Long idAgent, Long idUtilisateurConnecte) {
+        log.info("[AGENT_DELETE] Tentative de suppression agent ID: {} par utilisateur ID: {}", idAgent, idUtilisateurConnecte);
+        
+        GmAgent agent = agentRepository.findById(idAgent)
+                .orElseThrow(() -> {
+                    log.error("[AGENT_DELETE] Agent {} non trouv\u00e9", idAgent);
+                    return new RuntimeException("Agent non trouv\u00e9 : " + idAgent);
+                });
+        
+        // V\u00e9rifier que l'utilisateur connect\u00e9 est le cr\u00e9ateur de l'agent
+        if (agent.getIdUtilisateurCreateur() == null || !agent.getIdUtilisateurCreateur().equals(idUtilisateurConnecte)) {
+            log.error("[AGENT_DELETE] ERREUR: L'utilisateur {} n'est pas le créateur de l'agent {}", idUtilisateurConnecte, idAgent);
+            throw new IllegalArgumentException("Vous ne pouvez supprimer que les agents que vous avez créés");
+        }
+        
+        try {
+            log.info("[AGENT_DELETE] Suppression autorisée - Agent {} créé par utilisateur {}", idAgent, idUtilisateurConnecte);
+            agentRepository.deleteById(idAgent);
+            log.info("[AGENT_DELETE] ✓ Agent {} supprimé avec succès", idAgent);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.error("[AGENT_DELETE] ERREUR: Impossible de supprimer l'agent {} - Utilisé dans des missions", idAgent);
+            String message = String.format(
+                "❌ SUPPRESSION IMPOSSIBLE\n\n" +
+                "L'agent %s %s (Matricule: %s) ne peut pas être supprimé car il participe actuellement à une ou plusieurs missions.\n\n" +
+                "🔹 Actions possibles :\n" +
+                "  • Terminer ou clôturer les missions concernées\n" +
+                "  • Retirer cet agent de la liste des participants\n" +
+                "  • Remplacer l'agent par un autre participant\n\n" +
+                "Pour des raisons de traçabilité et d'intégrité des données, les agents affectés à des missions actives ne peuvent pas être supprimés.",
+                agent.getPrenomAgent(), 
+                agent.getNomAgent(), 
+                agent.getMatriculeAgent()
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 }

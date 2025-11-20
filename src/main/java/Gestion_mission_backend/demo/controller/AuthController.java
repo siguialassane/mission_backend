@@ -55,6 +55,11 @@ public class AuthController {
 
             // Récupérer les informations de l'utilisateur
             Utilisateur utilisateur = authService.getUtilisateurByEmail(loginRequest.getEmail());
+            
+            // Stocker l'userId dans la session pour un accès facile
+            session.setAttribute("userId", utilisateur.getIdUtilisateur());
+            System.out.println("🔐 [LOGIN] Session créée - userId=" + utilisateur.getIdUtilisateur() + 
+                             " (" + utilisateur.getPrenomUtilisateur() + " " + utilisateur.getNomUtilisateur() + ")");
 
             // Créer la réponse
             AuthResponse response = new AuthResponse(

@@ -67,6 +67,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/missions/**").permitAll() // Temporaire : permettre accès sans auth
                         .requestMatchers("/api/agents/**").permitAll() // Temporaire
                         .requestMatchers("/api/references/**").permitAll() // Temporaire
+                        .requestMatchers("/api/templates/**").permitAll() // Temporaire - Templates motifs
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form.disable())
