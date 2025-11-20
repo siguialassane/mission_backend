@@ -2,6 +2,7 @@ package Gestion_mission_backend.demo.controller;
 
 import Gestion_mission_backend.demo.entity.AcEntite;
 import Gestion_mission_backend.demo.entity.AcVille;
+import Gestion_mission_backend.demo.entity.GmFonction;
 import Gestion_mission_backend.demo.entity.GmNatureMission;
 import Gestion_mission_backend.demo.entity.GmRessource;
 import Gestion_mission_backend.demo.entity.GmService;
@@ -48,5 +49,10 @@ public class ReferenceController {
     @GetMapping("/services")
     public ResponseEntity<List<GmService>> getAllServices() {
         return ResponseEntity.ok(referenceService.getAllServices());
+    }
+
+    @GetMapping("/fonctions")
+    public ResponseEntity<List<GmFonction>> getAllFonctions() {
+        return ResponseEntity.ok(referenceService.getAllFonctions());
     }
 }

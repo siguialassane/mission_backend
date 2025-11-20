@@ -41,10 +41,10 @@ public class GmOrdreMission {
     private LocalDate dateFinEffectiveOrdreMission;
 
     @Column(name = "DUREE_PREVUE_JOURS_ORDRE_MISSI")
-    private Integer dureePrevueJoursOrdreMission;
+    private Long dureePrevueJoursOrdreMission;
 
     @Column(name = "DUREE_EFFECTIVE_JOURS_ORDRE_MI")
-    private Integer dureeEffectiveJoursOrdreMission;
+    private Long dureeEffectiveJoursOrdreMission;
 
     @Column(name = "URGENCE_ORDRE_MISSION", length = 30)
     private String urgenceOrdreMission;
@@ -76,6 +76,9 @@ public class GmOrdreMission {
     @Column(name = "ID_NATURE_MISSION")
     private Long idNatureMission;
 
+    @Column(name = "ID_SERVICE")
+    private Long idService;
+
     // Relations bidirectionnelles avec cascade
     @OneToMany(mappedBy = "ordreMission", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<GmParticiper> participants = new ArrayList<>();
@@ -93,9 +96,7 @@ public class GmOrdreMission {
     // Callbacks JPA
     @PrePersist
     public void prePersist() {
-        if (this.statutOrdreMission == null) {
-            this.statutOrdreMission = "BROUILLON";
-        }
+        // Statut fourni par le frontend lors de la création
         if (this.dateCreationOrdreMission == null) {
             this.dateCreationOrdreMission = LocalDate.now();
         }
@@ -208,19 +209,19 @@ public class GmOrdreMission {
         this.dateFinEffectiveOrdreMission = dateFinEffectiveOrdreMission;
     }
 
-    public Integer getDureePrevueJoursOrdreMission() {
+    public Long getDureePrevueJoursOrdreMission() {
         return dureePrevueJoursOrdreMission;
     }
 
-    public void setDureePrevueJoursOrdreMission(Integer dureePrevueJoursOrdreMission) {
+    public void setDureePrevueJoursOrdreMission(Long dureePrevueJoursOrdreMission) {
         this.dureePrevueJoursOrdreMission = dureePrevueJoursOrdreMission;
     }
 
-    public Integer getDureeEffectiveJoursOrdreMission() {
+    public Long getDureeEffectiveJoursOrdreMission() {
         return dureeEffectiveJoursOrdreMission;
     }
 
-    public void setDureeEffectiveJoursOrdreMission(Integer dureeEffectiveJoursOrdreMission) {
+    public void setDureeEffectiveJoursOrdreMission(Long dureeEffectiveJoursOrdreMission) {
         this.dureeEffectiveJoursOrdreMission = dureeEffectiveJoursOrdreMission;
     }
 
@@ -248,11 +249,11 @@ public class GmOrdreMission {
         this.dateDemandeMission = dateDemandeMission;
     }
 
-    public Double getBudgetAlloueOrdreMission() {
+    public Long getBudgetAlloueOrdreMission() {
         return budgetAlloueOrdreMission;
     }
 
-    public void setBudgetAlloueOrdreMission(Double budgetAlloueOrdreMission) {
+    public void setBudgetAlloueOrdreMission(Long budgetAlloueOrdreMission) {
         this.budgetAlloueOrdreMission = budgetAlloueOrdreMission;
     }
 
@@ -302,6 +303,14 @@ public class GmOrdreMission {
 
     public void setIdNatureMission(Long idNatureMission) {
         this.idNatureMission = idNatureMission;
+    }
+
+    public Long getIdService() {
+        return idService;
+    }
+
+    public void setIdService(Long idService) {
+        this.idService = idService;
     }
 
     public List<GmParticiper> getParticipants() {

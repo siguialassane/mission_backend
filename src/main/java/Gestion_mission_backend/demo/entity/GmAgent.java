@@ -13,7 +13,7 @@ public class GmAgent {
     @Column(name = "ID_AGENT")
     private Long idAgent;
 
-    @Column(name = "ID_FONCTION")
+    @Column(name = "ID_FONCTION", nullable = false)
     private Long idFonction;
 
     @Column(name = "ID_HISTORIQUE")

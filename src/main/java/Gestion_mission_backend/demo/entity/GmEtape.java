@@ -23,13 +23,13 @@ public class GmEtape {
     private String villeCode;
 
     @Column(name = "ORDRE_ETAPE")
-    private Integer ordreEtape;
+    private Long ordreEtape;
 
     // Constructeurs
     public GmEtape() {
     }
 
-    public GmEtape(GmOrdreMission ordreMission, String villeCode, Integer ordreEtape) {
+    public GmEtape(GmOrdreMission ordreMission, String villeCode, Long ordreEtape) {
         this.ordreMission = ordreMission;
         this.villeCode = villeCode;
         this.ordreEtape = ordreEtape;
@@ -68,11 +68,11 @@ public class GmEtape {
         this.villeCode = villeCode;
     }
 
-    public Integer getOrdreEtape() {
+    public Long getOrdreEtape() {
         return ordreEtape;
     }
 
-    public void setOrdreEtape(Integer ordreEtape) {
+    public void setOrdreEtape(Long ordreEtape) {
         this.ordreEtape = ordreEtape;
     }
 }

@@ -14,9 +14,11 @@ public interface GmAgentRepository extends JpaRepository<GmAgent, Long> {
     
     Optional<GmAgent> findByMatriculeAgent(String matricule);
     
-    boolean existsByMatriculeAgent(String matricule);
+    @Query("SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END FROM GmAgent a WHERE a.matriculeAgent = :matricule")
+    boolean existsByMatriculeAgent(@Param("matricule") String matricule);
     
-    boolean existsByEmailAgent(String email);
+    @Query("SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END FROM GmAgent a WHERE a.emailAgent = :email")
+    boolean existsByEmailAgent(@Param("email") String email);
     
     @Query("SELECT a FROM GmAgent a WHERE " +
            "LOWER(a.nomAgent) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
@@ -25,4 +27,7 @@ public interface GmAgentRepository extends JpaRepository<GmAgent, Long> {
     List<GmAgent> searchAgents(@Param("query") String query);
     
     List<GmAgent> findByStatutActifAgent(String statut);
+    
+    // Récupérer les agents créés par un utilisateur spécifique
+    List<GmAgent> findByIdUtilisateurCreateur(Long idUtilisateur);
 }

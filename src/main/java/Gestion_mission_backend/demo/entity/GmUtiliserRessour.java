@@ -17,7 +17,7 @@ public class GmUtiliserRessour {
     private Long idOrdreMission;
 
     @Column(name = "QUANTITE")
-    private Integer quantite;
+    private Long quantite;
 
     @Column(name = "DATE_DEBUT")
     private LocalDate dateDebut;
@@ -33,7 +33,7 @@ public class GmUtiliserRessour {
     public GmUtiliserRessour() {
     }
 
-    public GmUtiliserRessour(Long idRessource, Long idOrdreMission, Integer quantite) {
+    public GmUtiliserRessour(Long idRessource, Long idOrdreMission, Long quantite) {
         this.idRessource = idRessource;
         this.idOrdreMission = idOrdreMission;
         this.quantite = quantite;
@@ -56,11 +56,11 @@ public class GmUtiliserRessour {
         this.idOrdreMission = idOrdreMission;
     }
 
-    public Integer getQuantite() {
+    public Long getQuantite() {
         return quantite;
     }
 
-    public void setQuantite(Integer quantite) {
+    public void setQuantite(Long quantite) {
         this.quantite = quantite;
     }
 

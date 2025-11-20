@@ -7,5 +7,5 @@ public class RessourceResponseDTO {
     private Long idUtiliserRessour;
     private Long idRessource;
     private String ressourceLib;
-    private Integer quantite;
+    private Long quantite;
 }

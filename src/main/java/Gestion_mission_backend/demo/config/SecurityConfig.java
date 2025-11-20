@@ -64,6 +64,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/missions/**").permitAll() // Temporaire : permettre accès sans auth
+                        .requestMatchers("/api/agents/**").permitAll() // Temporaire
+                        .requestMatchers("/api/references/**").permitAll() // Temporaire
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form.disable())

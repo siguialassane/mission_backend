@@ -5,5 +5,5 @@ import lombok.Data;
 @Data
 public class EtapeDTO {
     private String villeCode;
-    private Integer ordreEtape;
+    private Long ordreEtape;
 }

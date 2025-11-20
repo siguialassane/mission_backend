@@ -2,6 +2,9 @@ package Gestion_mission_backend.demo.controller;
 
 import Gestion_mission_backend.demo.dto.AgentDTO;
 import Gestion_mission_backend.demo.service.AgentService;
+import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +17,8 @@ import java.util.List;
 @CrossOrigin(origins = {"http://localhost:8017", "http://localhost:5173", "http://localhost:3000"})
 public class AgentController {
 
+    private static final Logger log = LoggerFactory.getLogger(AgentController.class);
+
     @Autowired
     private AgentService agentService;
 
@@ -25,6 +30,16 @@ public class AgentController {
         } else {
             agents = agentService.getAllAgents();
         }
+        return ResponseEntity.ok(agents);
+    }
+
+    @GetMapping("/mine")
+    public ResponseEntity<List<AgentDTO>> getMyAgents(HttpSession session) {
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        List<AgentDTO> agents = agentService.getMyAgents(userId);
         return ResponseEntity.ok(agents);
     }
 
@@ -46,11 +61,26 @@ public class AgentController {
 
     @PostMapping
     public ResponseEntity<AgentDTO> createAgent(@RequestBody AgentDTO dto) {
+        log.info("[API] POST /api/agents - Requête reçue");
         try {
+            // Validation de l'ID créateur
+            if (dto.getIdUtilisateurCreateur() == null) {
+                log.warn("[API] POST /api/agents - ID Utilisateur créateur manquant");
+                // On pourrait renvoyer une erreur, mais pour l'instant on log juste
+                // return ResponseEntity.badRequest().build();
+            }
+            
+            log.debug("[API] POST /api/agents - UserId: {}", dto.getIdUtilisateurCreateur());
+            
             AgentDTO agent = agentService.createAgent(dto);
+            log.info("[API] POST /api/agents - Succès (201)");
             return ResponseEntity.status(HttpStatus.CREATED).body(agent);
         } catch (IllegalArgumentException e) {
+            log.error("[API] POST /api/agents - Erreur validation: {}", e.getMessage());
             return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            log.error("[API] POST /api/agents - Erreur serveur: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

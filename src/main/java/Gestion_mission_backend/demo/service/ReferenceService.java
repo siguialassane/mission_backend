@@ -2,11 +2,13 @@ package Gestion_mission_backend.demo.service;
 
 import Gestion_mission_backend.demo.entity.AcEntite;
 import Gestion_mission_backend.demo.entity.AcVille;
+import Gestion_mission_backend.demo.entity.GmFonction;
 import Gestion_mission_backend.demo.entity.GmNatureMission;
 import Gestion_mission_backend.demo.entity.GmRessource;
 import Gestion_mission_backend.demo.entity.GmService;
 import Gestion_mission_backend.demo.repository.AcEntiteRepository;
 import Gestion_mission_backend.demo.repository.AcVilleRepository;
+import Gestion_mission_backend.demo.repository.GmFonctionRepository;
 import Gestion_mission_backend.demo.repository.GmNatureMissionRepository;
 import Gestion_mission_backend.demo.repository.GmRessourceRepository;
 import Gestion_mission_backend.demo.repository.GmServiceRepository;
@@ -33,6 +35,9 @@ public class ReferenceService {
 
     @Autowired
     private GmServiceRepository serviceRepository;
+
+    @Autowired
+    private GmFonctionRepository fonctionRepository;
 
     @Transactional(readOnly = true)
     public List<AcVille> getAllVilles() {
@@ -62,5 +67,10 @@ public class ReferenceService {
     @Transactional(readOnly = true)
     public List<GmService> getAllServices() {
         return serviceRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<GmFonction> getAllFonctions() {
+        return fonctionRepository.findAll();
     }
 }

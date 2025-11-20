@@ -11,4 +11,9 @@ public class AgentDTO {
     private String emailAgent;
     private String telephoneAgent;
     private String statutActifAgent;
+    private Long idFonction;
+    private String libelleFonction;
+    private Long idService;
+    private String libelleService;
+    private Long idUtilisateurCreateur;
 }

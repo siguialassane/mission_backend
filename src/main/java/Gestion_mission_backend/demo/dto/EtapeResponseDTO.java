@@ -7,5 +7,5 @@ public class EtapeResponseDTO {
     private Long idEtape;
     private String villeCode;
     private String villeLib;
-    private Integer ordreEtape;
+    private Long ordreEtape;
 }

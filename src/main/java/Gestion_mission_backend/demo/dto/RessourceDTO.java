@@ -5,5 +5,5 @@ import lombok.Data;
 @Data
 public class RessourceDTO {
     private Long idRessource;
-    private Integer quantite;
+    private Long quantite;
 }

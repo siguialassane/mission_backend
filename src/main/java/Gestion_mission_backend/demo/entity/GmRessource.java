@@ -19,7 +19,7 @@ public class GmRessource {
     private String libRessource;
 
     @Column(name = "DISPO_RESSOURCE")
-    private Integer dispoRessource;
+    private Long dispoRessource;
 
     // Constructeurs
     public GmRessource() {
@@ -55,11 +55,11 @@ public class GmRessource {
         this.libRessource = libRessource;
     }
 
-    public Integer getDispoRessource() {
+    public Long getDispoRessource() {
         return dispoRessource;
     }
 
-    public void setDispoRessource(Integer dispoRessource) {
+    public void setDispoRessource(Long dispoRessource) {
         this.dispoRessource = dispoRessource;
     }
 }
