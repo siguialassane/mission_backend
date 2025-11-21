@@ -27,4 +27,5 @@ public class MissionResponseDTO {
     private List<ParticipantResponseDTO> participants;
     private List<EtapeResponseDTO> etapes;
     private List<RessourceResponseDTO> ressources;
+    private List<ValidationInfoDTO> validations;
 }

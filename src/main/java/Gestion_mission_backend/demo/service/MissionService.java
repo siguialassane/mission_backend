@@ -49,6 +49,9 @@ public class MissionService {
     private GmServiceRepository serviceRepository;
 
     @Autowired
+    private GmValidationWorkflowRepository validationRepository;
+
+    @Autowired
     private GmUtilisateurRepository utilisateurRepository;
 
     @Transactional
@@ -183,6 +186,12 @@ public class MissionService {
         return toResponseDTO(mission);
     }
 
+    @Transactional
+    public void updateMissionStatus(Long id, String nouveauStatut) {
+        log.info("[MISSION_SERVICE] Mise à jour statut mission {} vers {}", id, nouveauStatut);
+        updateStatut(id, nouveauStatut);
+    }
+
     private MissionResponseDTO toResponseDTO(GmOrdreMission mission) {
         MissionResponseDTO dto = new MissionResponseDTO();
         dto.setIdOrdreMission(mission.getIdOrdreMission());
@@ -244,9 +253,14 @@ public class MissionService {
                 .map(this::toRessourceResponseDTO)
                 .collect(Collectors.toList()));
 
-        log.debug("[MISSION_DTO] Mission {} convertie - Participants: {}, Etapes: {}, Ressources: {}",
+        // Mapper les validations avec les infos du validateur
+        dto.setValidations(validationRepository.findByIdOrdreMissionOrderByDateValidationDesc(mission.getIdOrdreMission()).stream()
+                .map(this::toValidationInfoDTO)
+                .collect(Collectors.toList()));
+
+        log.debug("[MISSION_DTO] Mission {} convertie - Participants: {}, Etapes: {}, Ressources: {}, Validations: {}",
                 mission.getIdOrdreMission(), dto.getParticipants().size(), 
-                dto.getEtapes().size(), dto.getRessources().size());
+                dto.getEtapes().size(), dto.getRessources().size(), dto.getValidations().size());
 
         return dto;
     }
@@ -287,6 +301,28 @@ public class MissionService {
 
         gmRessourceRepository.findById(ressource.getIdRessource())
                 .ifPresent(r -> dto.setRessourceLib(r.getLibRessource()));
+
+        return dto;
+    }
+
+    private ValidationInfoDTO toValidationInfoDTO(GmValidationWorkflow validation) {
+        ValidationInfoDTO dto = new ValidationInfoDTO();
+        dto.setIdValidation(validation.getIdValidation());
+        dto.setTypeValidation(validation.getTypeValidation());
+        dto.setStatutValidation(validation.getStatutValidation());
+        dto.setDateValidation(validation.getDateValidation());
+        dto.setCommentairesValidation(validation.getCommentairesValidation());
+        dto.setIdUtilisateurValidateur(validation.getIdUtilisateurValidateur());
+
+        // Récupérer le nom du validateur
+        if (validation.getIdUtilisateurValidateur() != null) {
+            utilisateurRepository.findById(validation.getIdUtilisateurValidateur())
+                    .ifPresent(u -> {
+                        dto.setValidateurNom(u.getNomUtilisateur());
+                        dto.setValidateurPrenom(u.getPrenomUtilisateur());
+                        dto.setValidateurNomComplet(u.getPrenomUtilisateur() + " " + u.getNomUtilisateur());
+                    });
+        }
 
         return dto;
     }
