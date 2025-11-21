@@ -248,8 +248,9 @@ public class MissionService {
         dto.setLieuDepart("Abidjan");
         dto.setLieuDestination("Abidjan");
 
-        // Mapper les ressources
-        dto.setRessources(mission.getRessources().stream()
+        // Mapper les ressources - Charger directement depuis le repository pour éviter les problèmes de LAZY loading
+        List<GmUtiliserRessour> ressourcesMission = ressourceRepository.findByIdOrdreMission(mission.getIdOrdreMission());
+        dto.setRessources(ressourcesMission.stream()
                 .map(this::toRessourceResponseDTO)
                 .collect(Collectors.toList()));
 
