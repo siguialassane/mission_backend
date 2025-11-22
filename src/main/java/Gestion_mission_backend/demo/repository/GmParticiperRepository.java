@@ -13,6 +13,10 @@ public interface GmParticiperRepository extends JpaRepository<GmParticiper, Long
     
     List<GmParticiper> findByOrdreMission_IdOrdreMission(Long idOrdreMission);
     
+    List<GmParticiper> findByIdOrdreMission(Long idOrdreMission);
+    
+    int countByIdOrdreMission(Long idOrdreMission);
+    
     @Query("SELECT COUNT(p) FROM GmParticiper p WHERE p.ordreMission.idOrdreMission = :idMission AND p.role = 'CHEF'")
     long countChefByMission(@Param("idMission") Long idMission);
     

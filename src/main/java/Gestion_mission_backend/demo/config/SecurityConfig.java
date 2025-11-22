@@ -70,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/templates/**").permitAll() // Temporaire - Templates motifs
                         .requestMatchers("/api/ressources/**").permitAll() // Temporaire - Ressources RH
                         .requestMatchers("/api/validations/**").permitAll() // Temporaire - Validations workflow
+                        .requestMatchers("/api/mg/**").permitAll() // Moyens Généraux
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form.disable())
