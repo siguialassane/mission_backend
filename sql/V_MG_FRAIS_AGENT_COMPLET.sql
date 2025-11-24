@@ -1,0 +1,72 @@
+-- ============================================================================
+-- Vue : V_MG_FRAIS_AGENT_COMPLET
+-- Description : Détail des frais pour AGENTS + RESSOURCES (Police/Chauffeur)
+-- Utilisation : Affichage unifié des frais pour participants et ressources
+-- ============================================================================
+
+CREATE OR REPLACE VIEW V_MG_FRAIS_AGENT_COMPLET AS
+-- Frais des AGENTS (ID_AGENT > 0)
+SELECT 
+    f.ID_ORDRE_MISSION,
+    f.ID_AGENT,
+    a.NOM_AGENT,
+    a.PRENOM_AGENT,
+    (a.NOM_AGENT || ' ' || a.PRENOM_AGENT) AS NOM_COMPLET,
+    a.ID_FONCTION,
+    fn.LIB_FONCTION,
+    'AGENT' AS TYPE_PARTICIPANT,
+    f.ID_CATEGORIE_FRAIS,
+    cf.LIBELLE_CATEGORIE_FRAIS,
+    f.QUANTITE__FRAIS_MISSION AS QTE,
+    f.PRIX_UNITAIRE__FRAIS_MISSION AS PU,
+    f.MONTANT_PREVU__FRAIS_MISSION AS MT
+FROM 
+    GM_FRAISMISSION f
+    INNER JOIN GM_AGENT a ON f.ID_AGENT = a.ID_AGENT
+    INNER JOIN GM_FONCTION fn ON a.ID_FONCTION = fn.ID_FONCTION
+    INNER JOIN GM_CATEGORIEFRAIS cf ON f.ID_CATEGORIE_FRAIS = cf.ID_CATEGORIE_FRAIS
+WHERE 
+    f.ID_AGENT > 0
+    AND f.MONTANT_PREVU__FRAIS_MISSION > 0
+
+UNION ALL
+
+-- Frais des RESSOURCES (ID_AGENT < 0, ID négatif = -ID_RESSOURCE)
+SELECT 
+    f.ID_ORDRE_MISSION,
+    f.ID_AGENT,
+    r.LIB_RESSOURCE AS NOM_AGENT,
+    '' AS PRENOM_AGENT,
+    r.LIB_RESSOURCE AS NOM_COMPLET,
+    CASE 
+        WHEN r.ID_TYPE_RESSOURCE = 2 THEN 5  -- Chauffeur
+        WHEN r.ID_TYPE_RESSOURCE = 3 THEN 4  -- Police
+        ELSE NULL
+    END AS ID_FONCTION,
+    CASE 
+        WHEN r.ID_TYPE_RESSOURCE = 2 THEN 'Chauffeur'
+        WHEN r.ID_TYPE_RESSOURCE = 3 THEN 'Police'
+        ELSE 'Ressource'
+    END AS LIB_FONCTION,
+    'RESSOURCE' AS TYPE_PARTICIPANT,
+    f.ID_CATEGORIE_FRAIS,
+    cf.LIBELLE_CATEGORIE_FRAIS,
+    f.QUANTITE__FRAIS_MISSION AS QTE,
+    f.PRIX_UNITAIRE__FRAIS_MISSION AS PU,
+    f.MONTANT_PREVU__FRAIS_MISSION AS MT
+FROM 
+    GM_FRAISMISSION f
+    INNER JOIN GM_RESSOURCE r ON (-f.ID_AGENT) = r.ID_RESSOURCE
+    INNER JOIN GM_CATEGORIEFRAIS cf ON f.ID_CATEGORIE_FRAIS = cf.ID_CATEGORIE_FRAIS
+WHERE 
+    f.ID_AGENT < 0
+    AND f.MONTANT_PREVU__FRAIS_MISSION > 0
+    AND r.ID_TYPE_RESSOURCE IN (2, 3)  -- Seulement Police et Chauffeur
+
+ORDER BY 
+    ID_ORDRE_MISSION,
+    TYPE_PARTICIPANT DESC,  -- RESSOURCE avant AGENT pour les afficher en premier
+    NOM_COMPLET;
+
+-- Commentaire
+COMMENT ON TABLE V_MG_FRAIS_AGENT_COMPLET IS 'Vue unifiée : frais des agents + ressources (Police/Chauffeur)';
