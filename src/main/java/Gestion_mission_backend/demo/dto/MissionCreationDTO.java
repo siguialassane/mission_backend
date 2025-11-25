@@ -7,6 +7,8 @@ import java.util.List;
 @Data
 public class MissionCreationDTO {
     private String objetOrdreMission;
+    private String motifMission; // Nouveau champ pour le motif
+    private Boolean urgence; // Nouveau champ pour l'urgence
     private LocalDate dateDebutMission;
     private LocalDate dateFinMission;
     private Long idNatureMission;

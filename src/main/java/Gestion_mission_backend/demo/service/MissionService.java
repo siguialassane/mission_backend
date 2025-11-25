@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -80,8 +81,39 @@ public class MissionService {
         // Créer l'ordre de mission
         GmOrdreMission mission = new GmOrdreMission();
         mission.setObjetOrdreMission(dto.getObjetOrdreMission());
+        
+        // Mappage du Motif vers Observations (ou un champ dédié si existant, ici on utilise Observations pour ne pas perdre l'info)
+        if (dto.getMotifMission() != null && !dto.getMotifMission().isEmpty()) {
+            mission.setObservationsOrdreMission(dto.getMotifMission());
+        }
+
+        // Mappage de l'Urgence
+        if (Boolean.TRUE.equals(dto.getUrgence())) {
+            mission.setUrgenceOrdreMission("URGENT");
+        } else {
+            mission.setUrgenceOrdreMission("NORMAL");
+        }
+
         mission.setDateDebutPrevueOrdreMission(dto.getDateDebutMission());
         mission.setDateFinPrevueOrdreMission(dto.getDateFinMission());
+        
+        // Calcul automatique de la durée
+        if (dto.getDateDebutMission() != null && dto.getDateFinMission() != null) {
+            long jours = ChronoUnit.DAYS.between(dto.getDateDebutMission(), dto.getDateFinMission()) + 1;
+            mission.setDureePrevueJoursOrdreMission(jours);
+        }
+
+        // Valeurs par défaut pour les lieux (Règle métier : Départ/Retour Abidjan par défaut)
+        mission.setLieuDepartOrdreMission("Abidjan");
+        mission.setLieuDestinationOrdreMission("Abidjan"); // Par défaut, retour à Abidjan
+
+        // Gestion de l'urgence
+        if (Boolean.TRUE.equals(dto.getUrgence())) {
+            mission.setUrgenceOrdreMission("URGENT");
+        } else {
+            mission.setUrgenceOrdreMission("NORMAL");
+        }
+
         mission.setIdNatureMission(dto.getIdNatureMission());
         mission.setEntiteCode(dto.getCodEntite());
         mission.setIdUtilisateurCreateur(dto.getIdUtilisateurCreateur());

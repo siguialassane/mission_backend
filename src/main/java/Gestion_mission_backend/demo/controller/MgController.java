@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/mg")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:8017", "http://localhost:5173", "http://localhost:3000"})
 public class MgController {
 
     private final GmOrdreMissionRepository missionRepository;
@@ -44,6 +43,7 @@ public class MgController {
     private final ViewMgRecapRepository viewRecapRepository;
     private final GmUtiliserRessourRepository utiliserRessourRepository;
     private final RessourceRepository ressourceRepository;
+    private final Gestion_mission_backend.demo.repository.ViewMgFraisCompletRepository viewFraisCompletRepository;
 
     /**
      * GET /api/mg/missions - Liste des missions VALIDEE_RH avec calcul automatique
@@ -166,13 +166,22 @@ public class MgController {
                 GmAgent agent = agentRepository.findById(participant.getIdAgent()).orElseThrow();
                 Long idFonction = agent.getIdFonction();
                 
-                FraisAgentDTO fraisAgent = calculerEtCreerFrais(
+                // Vérifier si cet agent est le Chef de Mission
+                boolean estChefMission = "CHEF_MISSION".equals(participant.getRole());
+                
+                FraisAgentDTO fraisAgent = calculerEtCreerFraisAvecChef(
                     id, agent.getIdAgent(), idFonction, dureeJours, dureeNuits,
                     agent.getNomAgent(), agent.getPrenomAgent(), 
                     agent.getNomAgent() + " " + agent.getPrenomAgent(),
-                    false // Pas une ressource
+                    false, // Pas une ressource
+                    estChefMission // Flag Chef de Mission pour le bonus carburant
                 );
                 fraisParAgent.add(fraisAgent);
+                
+                if (estChefMission) {
+                    log.info("👑 [MG] Chef de Mission détecté : {} {} (Fonction: {}) - Bonus Carburant appliqué", 
+                        agent.getPrenomAgent(), agent.getNomAgent(), idFonction);
+                }
             }
 
             // ========== 2. CALCULER FRAIS POUR LES RESSOURCES (Police et Chauffeur) ==========
@@ -198,8 +207,9 @@ public class MgController {
                     continue; // Véhicule, pas de frais
                 }
                 
-                // Utiliser l'ID de la ressource comme ID d'agent fictif (négatif pour éviter conflits)
-                Long idAgentFictif = -ressource.getIdRessource();
+                // Utiliser un ID fictif positif (900000 + ID) pour éviter les IDs négatifs
+                // Cela permet d'avoir un code unique "propre" pour les ressources
+                Long idAgentFictif = 900000 + ressource.getIdRessource();
                 
                 FraisAgentDTO fraisRessource = calculerEtCreerFrais(
                     id, idAgentFictif, idFonction, dureeJours, dureeNuits,
@@ -246,32 +256,36 @@ public class MgController {
     }
 
     /**
-     * GET /api/mg/missions/{id}/frais - Détails des frais (Calcul manuel pour inclure les ressources)
+     * GET /api/mg/missions/{id}/frais - Détails des frais (Via Vue SQL Optimisée)
      */
     @GetMapping("/missions/{id}/frais")
     @Transactional
     public ResponseEntity<?> getFraisDetails(@PathVariable Long id) {
-        log.info("📊 [MG] Récupération détails frais mission {}", id);
+        log.info("📊 [MG] Récupération détails frais mission {} (Vue SQL)", id);
 
         try {
             // 1. Récupérer la mission
             GmOrdreMission mission = missionRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Mission non trouvée"));
 
-            // 2. Récupérer tous les frais calculés
-            List<GmFraisMission> fraisList = fraisMissionRepository.findByIdOrdreMission(id);
+            // 2. Récupérer les frais via la Vue SQL Optimisée
+            List<Gestion_mission_backend.demo.entity.ViewMgFraisComplet> fraisList = viewFraisCompletRepository.findByIdMission(id);
+            
             if (fraisList.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Frais non calculés",
-                    "message", "Aucun frais trouvé pour cette mission"
-                ));
+                // Si vide, tenter un calcul automatique
+                log.warn("⚠️ [MG] Aucun frais trouvé pour mission {}, tentative de calcul...", id);
+                calculerFraisAutomatique(mission);
+                fraisList = viewFraisCompletRepository.findByIdMission(id);
+                
+                if (fraisList.isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Frais non calculés",
+                        "message", "Aucun frais trouvé pour cette mission"
+                    ));
+                }
             }
 
-            // 3. Préparer les maps pour les libellés
-            Map<Long, String> categoriesMap = categorieFraisRepository.findAll().stream()
-                    .collect(Collectors.toMap(GmCategorieFrais::getIdCategorieFrais, GmCategorieFrais::getLibelleCategorieFrais));
-
-            // 4. Grouper par Agent (ou Ressource)
+            // 3. Grouper par Agent (ou Ressource)
             Map<Long, FraisAgentDTO> agentsMap = new LinkedHashMap<>();
             long totalGeneral = 0;
             long totalRepas = 0;
@@ -279,8 +293,8 @@ public class MgController {
             long totalIndemnite = 0;
             long totalCarburant = 0;
 
-            for (GmFraisMission frais : fraisList) {
-                Long idAgent = frais.getIdAgent();
+            for (Gestion_mission_backend.demo.entity.ViewMgFraisComplet frais : fraisList) {
+                Long idAgent = frais.getIdParticipant();
                 
                 // Créer l'entrée agent si n'existe pas
                 if (!agentsMap.containsKey(idAgent)) {
@@ -288,34 +302,17 @@ public class MgController {
                     agentDTO.setIdAgent(idAgent);
                     agentDTO.setLignesFrais(new ArrayList<>());
                     agentDTO.setTotalAgent(0L);
-
-                    // Résoudre le nom et la fonction
-                    if (idAgent > 0) {
-                        // C'est un agent classique
-                        agentRepository.findById(idAgent).ifPresent(agent -> {
-                            agentDTO.setNomAgent(agent.getNomAgent());
-                            agentDTO.setPrenomAgent(agent.getPrenomAgent());
-                            agentDTO.setNomCompletAgent(agent.getNomAgent() + " " + agent.getPrenomAgent());
-                            agentDTO.setIdFonction(agent.getIdFonction());
-                            
-                            fonctionRepository.findById(agent.getIdFonction()).ifPresent(f -> 
-                                agentDTO.setLibelleFonction(f.getLibFonction())
-                            );
-                        });
-                    } else {
-                        // C'est une ressource (ID négatif)
-                        Long idRessource = -idAgent;
-                        ressourceRepository.findById(idRessource).ifPresent(res -> {
-                            String type = "";
-                            if (res.getIdTypeRessource() == 2L) type = "Chauffeur";
-                            else if (res.getIdTypeRessource() == 3L) type = "Police";
-                            
-                            agentDTO.setNomAgent(res.getLibRessource());
-                            agentDTO.setPrenomAgent("");
-                            agentDTO.setNomCompletAgent(res.getLibRessource() + " (" + type + ")");
-                            agentDTO.setLibelleFonction(type);
-                        });
-                    }
+                    
+                    // Nom et fonction viennent directement de la Vue !
+                    agentDTO.setNomCompletAgent(frais.getNomComplet());
+                    
+                    // Séparer Nom/Prénom si possible (pour compatibilité frontend)
+                    String[] parts = frais.getNomComplet().split(" ", 2);
+                    agentDTO.setNomAgent(parts[0]);
+                    agentDTO.setPrenomAgent(parts.length > 1 ? parts[1] : "");
+                    
+                    agentDTO.setLibelleFonction(frais.getLibFonction());
+                    
                     agentsMap.put(idAgent, agentDTO);
                 }
 
@@ -323,10 +320,10 @@ public class MgController {
                 FraisAgentDTO agentDTO = agentsMap.get(idAgent);
                 FraisLigneDTO ligne = new FraisLigneDTO();
                 ligne.setIdCategorieFrais(frais.getIdCategorieFrais());
-                ligne.setLibelleCategorie(categoriesMap.getOrDefault(frais.getIdCategorieFrais(), "Inconnu"));
-                ligne.setQuantite(frais.getQuantiteFraisMission());
-                ligne.setPrixUnitaire(frais.getPrixUnitaireFraisMission());
-                ligne.setMontant(frais.getMontantPrevuFraisMission());
+                ligne.setLibelleCategorie(frais.getLibCategorie());
+                ligne.setQuantite(frais.getQuantite());
+                ligne.setPrixUnitaire(frais.getPrixUnitaire());
+                ligne.setMontant(frais.getMontantTotal());
 
                 agentDTO.getLignesFrais().add(ligne);
                 agentDTO.setTotalAgent(agentDTO.getTotalAgent() + ligne.getMontant());
@@ -339,7 +336,12 @@ public class MgController {
                 else if (frais.getIdCategorieFrais() == 4L) totalCarburant += ligne.getMontant();
             }
 
-            // 5. Construire le récapitulatif
+            // Tri des lignes de frais pour chaque agent : Repas (1) -> Hébergement (2) -> Indemnité (3) -> Carburant (4)
+            for (FraisAgentDTO agent : agentsMap.values()) {
+                agent.getLignesFrais().sort(Comparator.comparingLong(FraisLigneDTO::getIdCategorieFrais));
+            }
+
+            // 4. Construire le récapitulatif
             RecapitulatifFraisDTO recap = new RecapitulatifFraisDTO();
             recap.setIdOrdreMission(mission.getIdOrdreMission());
             recap.setNumeroOrdreMission(mission.getNumeroOrdreMission());
@@ -355,93 +357,6 @@ public class MgController {
             recap.setDureeJours(dureeJours);
             recap.setDureeNuits(Math.max(0, dureeJours - 1));
             
-            // Vérifier si le nombre d'agents calculés correspond au nombre attendu (Participants + Ressources Humaines)
-            int nbParticipants = participerRepository.countByIdOrdreMission(id);
-            long nbRessourcesHumaines = utiliserRessourRepository.findByIdOrdreMission(id).stream()
-                .filter(ur -> {
-                    return ressourceRepository.findById(ur.getIdRessource())
-                        .map(r -> r.getIdTypeRessource() == 2L || r.getIdTypeRessource() == 3L)
-                        .orElse(false);
-                })
-                .count();
-            
-            int nbAttendu = nbParticipants + (int) nbRessourcesHumaines;
-            int nbCalcules = agentsMap.size();
-            
-            // Si incohérence, on recalcule UNE SEULE FOIS et on recharge les données
-            if (nbCalcules < nbAttendu) {
-                log.warn("⚠️ [MG] Incohérence détectée : {} calculés vs {} attendus. Recalcul forcé...", nbCalcules, nbAttendu);
-                
-                // 1. Supprimer les anciens frais pour éviter les doublons
-                fraisMissionRepository.deleteByIdOrdreMission(id);
-                
-                // 2. Recalculer
-                calculerFraisAutomatique(mission);
-                
-                // 3. Recharger les frais fraîchement calculés
-                fraisList = fraisMissionRepository.findByIdOrdreMission(id);
-                
-                // 4. Reconstruire la map (copier-coller de la logique ci-dessus, ou refactoriser)
-                // Pour faire simple et éviter la récursion infinie, on refait la boucle de mapping ici
-                agentsMap.clear();
-                totalGeneral = 0;
-                totalRepas = 0;
-                totalHebergement = 0;
-                totalIndemnite = 0;
-                totalCarburant = 0;
-                
-                for (GmFraisMission frais : fraisList) {
-                    Long idAgent = frais.getIdAgent();
-                    if (!agentsMap.containsKey(idAgent)) {
-                        FraisAgentDTO agentDTO = new FraisAgentDTO();
-                        agentDTO.setIdAgent(idAgent);
-                        agentDTO.setLignesFrais(new ArrayList<>());
-                        agentDTO.setTotalAgent(0L);
-
-                        if (idAgent > 0) {
-                            agentRepository.findById(idAgent).ifPresent(agent -> {
-                                agentDTO.setNomAgent(agent.getNomAgent());
-                                agentDTO.setPrenomAgent(agent.getPrenomAgent());
-                                agentDTO.setNomCompletAgent(agent.getNomAgent() + " " + agent.getPrenomAgent());
-                                agentDTO.setIdFonction(agent.getIdFonction());
-                                fonctionRepository.findById(agent.getIdFonction()).ifPresent(f -> 
-                                    agentDTO.setLibelleFonction(f.getLibFonction())
-                                );
-                            });
-                        } else {
-                            Long idRessource = -idAgent;
-                            ressourceRepository.findById(idRessource).ifPresent(res -> {
-                                String type = "";
-                                if (res.getIdTypeRessource() == 2L) type = "Chauffeur";
-                                else if (res.getIdTypeRessource() == 3L) type = "Police";
-                                agentDTO.setNomAgent(res.getLibRessource());
-                                agentDTO.setPrenomAgent("");
-                                agentDTO.setNomCompletAgent(res.getLibRessource() + " (" + type + ")");
-                                agentDTO.setLibelleFonction(type);
-                            });
-                        }
-                        agentsMap.put(idAgent, agentDTO);
-                    }
-                    
-                    FraisAgentDTO agentDTO = agentsMap.get(idAgent);
-                    FraisLigneDTO ligne = new FraisLigneDTO();
-                    ligne.setIdCategorieFrais(frais.getIdCategorieFrais());
-                    ligne.setLibelleCategorie(categoriesMap.getOrDefault(frais.getIdCategorieFrais(), "Inconnu"));
-                    ligne.setQuantite(frais.getQuantiteFraisMission());
-                    ligne.setPrixUnitaire(frais.getPrixUnitaireFraisMission());
-                    ligne.setMontant(frais.getMontantPrevuFraisMission());
-
-                    agentDTO.getLignesFrais().add(ligne);
-                    agentDTO.setTotalAgent(agentDTO.getTotalAgent() + ligne.getMontant());
-
-                    totalGeneral += ligne.getMontant();
-                    if (frais.getIdCategorieFrais() == 1L) totalRepas += ligne.getMontant();
-                    else if (frais.getIdCategorieFrais() == 2L) totalHebergement += ligne.getMontant();
-                    else if (frais.getIdCategorieFrais() == 3L) totalIndemnite += ligne.getMontant();
-                    else if (frais.getIdCategorieFrais() == 4L) totalCarburant += ligne.getMontant();
-                }
-            }
-            
             recap.setNombreAgents(agentsMap.size());
             recap.setFraisParAgent(new ArrayList<>(agentsMap.values()));
             recap.setTotalRepas(totalRepas);
@@ -452,7 +367,7 @@ public class MgController {
             
             recap.setValidationComplete("BUDGET_VALIDE".equals(mission.getStatutOrdreMission()));
 
-            log.info("✅ [MG] Détails récupérés (Manuel) : {} FCFA pour {} personnes", totalGeneral, agentsMap.size());
+            log.info("✅ [MG] Détails récupérés (Vue SQL) : {} FCFA pour {} personnes", totalGeneral, agentsMap.size());
             return ResponseEntity.ok(recap);
 
         } catch (Exception e) {
@@ -475,10 +390,16 @@ public class MgController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Frais non calculés"));
             }
 
+            // Calcul du budget total validé
+            List<GmFraisMission> frais = fraisMissionRepository.findByIdOrdreMission(id);
+            long totalBudget = frais.stream()
+                .mapToLong(f -> (f.getMontantPrevuFraisMission() != null ? f.getMontantPrevuFraisMission().longValue() : 0))
+                .sum();
+
+            mission.setBudgetAlloueOrdreMission(totalBudget);
             mission.setStatutOrdreMission("BUDGET_VALIDE");
             missionRepository.save(mission);
 
-            List<GmFraisMission> frais = fraisMissionRepository.findByIdOrdreMission(id);
             frais.forEach(f -> {
                 f.setStatutValidationFraisMission("VALIDE");
                 f.setDateValidFaisMission(LocalDate.now());
@@ -561,6 +482,37 @@ public class MgController {
         return ResponseEntity.ok(dtos);
     }
 
+    /**
+     * GET /api/mg/missions/{id}/compare - Compare les résultats Java vs Vue SQL
+     */
+    @GetMapping("/missions/{id}/compare")
+    public ResponseEntity<?> compareCalculationMethods(@PathVariable Long id) {
+        log.info("⚖️ [MG] Comparaison Java vs Vue SQL pour mission {}", id);
+        
+        // 1. Résultat Java (Méthode actuelle)
+        ResponseEntity<?> responseJava = getFraisDetails(id);
+        Object resultJava = responseJava.getBody();
+        
+        // 2. Résultat Vue SQL (Nouvelle méthode)
+        List<Gestion_mission_backend.demo.entity.ViewMgFraisComplet> resultVue = viewFraisCompletRepository.findByIdMission(id);
+        
+        // Calculer le total via la Vue
+        long totalVue = resultVue.stream().mapToLong(v -> v.getMontantTotal() != null ? v.getMontantTotal() : 0).sum();
+        
+        Map<String, Object> comparison = new HashMap<>();
+        comparison.put("java_result", resultJava);
+        comparison.put("vue_result", resultVue);
+        comparison.put("vue_total", totalVue);
+        
+        // Extraction du total Java pour comparaison facile (si possible)
+        if (resultJava instanceof RecapitulatifFraisDTO) {
+            comparison.put("java_total", ((RecapitulatifFraisDTO) resultJava).getTotalGeneral());
+            comparison.put("match", totalVue == ((RecapitulatifFraisDTO) resultJava).getTotalGeneral());
+        }
+        
+        return ResponseEntity.ok(comparison);
+    }
+
     // Helper
     private void saveFrais(Long idMission, Long idAgent, Long idCategorie, long quantite, long prixUnitaire, long montantTotal) {
         GmFraisMission frais = new GmFraisMission();
@@ -610,8 +562,13 @@ public class MgController {
                 if (agent == null) continue;
                 
                 Long idFonction = agent.getIdFonction();
+                
+                // Règle Spéciale : Si l'agent est CHEF_MISSION dans cette mission, il reçoit le carburant
+                // Mais attention : il garde sa fonction d'origine (ex: Chef de Service) pour les repas/hôtel
+                boolean estChefMission = "CHEF_MISSION".equals(participant.getRole());
+                
                 calculerFraisParFonction(id, agent.getIdAgent(), idFonction, dureeJours, dureeNuits, 
-                    agent.getNomAgent() + " " + agent.getPrenomAgent());
+                    agent.getNomAgent() + " " + agent.getPrenomAgent(), estChefMission);
             }
 
             // ========== 2. CALCULER FRAIS POUR LES RESSOURCES (Police et Chauffeur) ==========
@@ -636,11 +593,12 @@ public class MgController {
                     continue; // Véhicule, pas de frais
                 }
                 
-                // Utiliser l'ID de la ressource comme ID d'agent fictif (négatif pour éviter conflits)
-                Long idAgentFictif = -ressource.getIdRessource();
+                // Utiliser un ID fictif POSITIF (900000 + ID) pour éviter les IDs négatifs
+                // Plage réservée : 900000+ pour les ressources (Police, Chauffeur)
+                Long idAgentFictif = 900000L + ressource.getIdRessource();
                 
-                log.info("👮 [MG] Ressource {} ({}), fonction {}", 
-                    ressource.getLibRessource(), idTypeRessource == 2L ? "Chauffeur" : "Police", idFonction);
+                log.info("👮 [MG] Ressource {} ({}), fonction {}, ID fictif: {}", 
+                    ressource.getLibRessource(), idTypeRessource == 2L ? "Chauffeur" : "Police", idFonction, idAgentFictif);
                 
                 calculerFraisParFonction(id, idAgentFictif, idFonction, dureeJours, dureeNuits, 
                     ressource.getLibRessource());
@@ -654,10 +612,17 @@ public class MgController {
 
     /**
      * Calcule les frais pour une fonction donnée (utilisé par participants ET ressources)
+     * 
+     * NOUVELLE RÈGLE MÉTIER (25/11/2025) :
+     * - TOUS les participants reçoivent Repas + Hébergement + Indemnité selon leur FONCTION D'ORIGINE
+     * - Le Chef de Mission reçoit EN PLUS un bonus Carburant de 400.000 FCFA
      */
     private void calculerFraisParFonction(Long idMission, Long idAgent, Long idFonction, 
-                                          long dureeJours, long dureeNuits, String nomComplet) {
+                                          long dureeJours, long dureeNuits, String nomComplet, boolean estChefMission) {
         try {
+            // ========== FRAIS NORMAUX (pour TOUS les participants, y compris le Chef de Mission) ==========
+            // On utilise la fonction d'origine de l'agent (ex: Fondé de pouvoir, Chef de service, Agent)
+            
             // Repas (ID=1)
             Long montantRepas = baremeRepository.findMontantByFonctionAndCategorie(idFonction, 1L).orElse(0L);
             if (montantRepas > 0) {
@@ -681,29 +646,54 @@ public class MgController {
                 log.debug("   📋 {} - Indemnité : {} × {} = {}", nomComplet, montantIndemnite, dureeJours, montantIndemnite * dureeJours);
             }
 
-            // Carburant (ID=4, Fonction=6 uniquement - Chef de mission)
-            if (idFonction == 6L) {
-                Long montantCarburant = baremeRepository.findMontantByFonctionAndCategorie(6L, 4L).orElse(0L);
+            // ========== BONUS CARBURANT (UNIQUEMENT pour le Chef de Mission) ==========
+            if (estChefMission) {
+                // On utilise la Fonction 6 (Chef de Mission) et la Catégorie 4 (Carburant) pour récupérer le forfait
+                Long montantCarburant = baremeRepository.findMontantByFonctionAndCategorie(6L, 4L).orElse(400000L);
                 if (montantCarburant > 0) {
                     saveFrais(idMission, idAgent, 4L, 1L, montantCarburant, montantCarburant);
-                    log.debug("   ⛽ {} - Carburant : {}", nomComplet, montantCarburant);
+                    log.info("   ⛽ {} - BONUS Carburant (Chef de Mission) : {} FCFA", nomComplet, montantCarburant);
                 }
             }
+
         } catch (Exception e) {
             log.error("❌ [MG] Erreur calcul frais pour {} (fonction {}) : {}", nomComplet, idFonction, e.getMessage());
         }
     }
 
+    // Surcharge pour compatibilité avec l'ancien appel (Ressources)
+    private void calculerFraisParFonction(Long idMission, Long idAgent, Long idFonction, 
+                                          long dureeJours, long dureeNuits, String nomComplet) {
+        calculerFraisParFonction(idMission, idAgent, idFonction, dureeJours, dureeNuits, nomComplet, false);
+    }
+
     /**
      * Calcule et crée les frais pour un agent/ressource, retourne le DTO avec détails
+     * 
+     * NOUVELLE RÈGLE MÉTIER (25/11/2025) :
+     * - Tous les participants reçoivent les frais normaux selon leur fonction d'origine
+     * - Le Chef de Mission reçoit EN PLUS le bonus Carburant 400.000 FCFA
      */
     private FraisAgentDTO calculerEtCreerFrais(Long idMission, Long idAgent, Long idFonction,
                                                long dureeJours, long dureeNuits,
                                                String nom, String prenom, String nomComplet,
                                                boolean estRessource) {
+        return calculerEtCreerFraisAvecChef(idMission, idAgent, idFonction, dureeJours, dureeNuits,
+                                            nom, prenom, nomComplet, estRessource, false);
+    }
+
+    /**
+     * Calcule et crée les frais pour un agent/ressource, avec gestion du Chef de Mission
+     */
+    private FraisAgentDTO calculerEtCreerFraisAvecChef(Long idMission, Long idAgent, Long idFonction,
+                                               long dureeJours, long dureeNuits,
+                                               String nom, String prenom, String nomComplet,
+                                               boolean estRessource, boolean estChefMission) {
         List<FraisLigneDTO> lignes = new ArrayList<>();
         long totalAgent = 0;
 
+        // ========== FRAIS NORMAUX (pour TOUS, y compris le Chef de Mission) ==========
+        
         // Repas (ID=1)
         Long montantRepas = baremeRepository.findMontantByFonctionAndCategorie(idFonction, 1L).orElse(0L);
         if (montantRepas > 0) {
@@ -733,9 +723,9 @@ public class MgController {
             totalAgent += montantTotal;
         }
 
-        // Carburant (ID=4, Fonction=6 uniquement)
-        if (idFonction == 6L) {
-            Long montantCarburant = baremeRepository.findMontantByFonctionAndCategorie(6L, 4L).orElse(0L);
+        // ========== BONUS CARBURANT (UNIQUEMENT pour le Chef de Mission) ==========
+        if (estChefMission) {
+            Long montantCarburant = baremeRepository.findMontantByFonctionAndCategorie(6L, 4L).orElse(400000L);
             if (montantCarburant > 0) {
                 saveFrais(idMission, idAgent, 4L, 1L, montantCarburant, montantCarburant);
                 lignes.add(new FraisLigneDTO(4L, "Carburant", 1L, montantCarburant, montantCarburant));

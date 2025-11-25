@@ -102,29 +102,47 @@ public class ValidationWorkflowController {
                 log.warn("[VALIDATION_API] ⚠ Validation Agent Comptable non cochée");
             }
 
-            // 3. Assigner les ressources si fournies
+            // 3. Assigner les ressources si fournies (support multi-ressources)
             log.info("[VALIDATION_API] ÉTAPE 3: Assignation des ressources");
             
-            if (dto.getIdVehicule() != null && dto.getIdVehicule() > 0) {
-                log.info("[VALIDATION_API] Tentative assignation véhicule ID: {}", dto.getIdVehicule());
-                ressourceAffectationService.assignerRessource(idMission, dto.getIdVehicule());
-                log.info("[VALIDATION_API] ✓ Véhicule {} assigné", dto.getIdVehicule());
+            // Véhicules (nouveau format multi + ancien format single)
+            java.util.List<Long> allVehicules = dto.getAllVehicules();
+            if (!allVehicules.isEmpty()) {
+                for (Long idVehicule : allVehicules) {
+                    if (idVehicule != null && idVehicule > 0) {
+                        log.info("[VALIDATION_API] Tentative assignation véhicule ID: {}", idVehicule);
+                        ressourceAffectationService.assignerRessource(idMission, idVehicule);
+                        log.info("[VALIDATION_API] ✓ Véhicule {} assigné", idVehicule);
+                    }
+                }
             } else {
                 log.info("[VALIDATION_API] Aucun véhicule à assigner");
             }
 
-            if (dto.getIdChauffeur() != null && dto.getIdChauffeur() > 0) {
-                log.info("[VALIDATION_API] Tentative assignation chauffeur ID: {}", dto.getIdChauffeur());
-                ressourceAffectationService.assignerRessource(idMission, dto.getIdChauffeur());
-                log.info("[VALIDATION_API] ✓ Chauffeur {} assigné", dto.getIdChauffeur());
+            // Chauffeurs (nouveau format multi + ancien format single)
+            java.util.List<Long> allChauffeurs = dto.getAllChauffeurs();
+            if (!allChauffeurs.isEmpty()) {
+                for (Long idChauffeur : allChauffeurs) {
+                    if (idChauffeur != null && idChauffeur > 0) {
+                        log.info("[VALIDATION_API] Tentative assignation chauffeur ID: {}", idChauffeur);
+                        ressourceAffectationService.assignerRessource(idMission, idChauffeur);
+                        log.info("[VALIDATION_API] ✓ Chauffeur {} assigné", idChauffeur);
+                    }
+                }
             } else {
                 log.info("[VALIDATION_API] Aucun chauffeur à assigner");
             }
 
-            if (dto.getIdPolice() != null && dto.getIdPolice() > 0) {
-                log.info("[VALIDATION_API] Tentative assignation police ID: {}", dto.getIdPolice());
-                ressourceAffectationService.assignerRessource(idMission, dto.getIdPolice());
-                log.info("[VALIDATION_API] ✓ Police {} assigné", dto.getIdPolice());
+            // Polices (nouveau format multi + ancien format single)
+            java.util.List<Long> allPolices = dto.getAllPolices();
+            if (!allPolices.isEmpty()) {
+                for (Long idPolice : allPolices) {
+                    if (idPolice != null && idPolice > 0) {
+                        log.info("[VALIDATION_API] Tentative assignation police ID: {}", idPolice);
+                        ressourceAffectationService.assignerRessource(idMission, idPolice);
+                        log.info("[VALIDATION_API] ✓ Police {} assigné", idPolice);
+                    }
+                }
             } else {
                 log.info("[VALIDATION_API] Aucun adjudant à assigner");
             }
